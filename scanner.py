@@ -1,23 +1,35 @@
 import argparse
+import socket
 from scapy.all import *
 
+def get_local_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(('255.255.255.255', 1))
+        IP = s.getsockname()[0]
+    except:
+        IP = '127.0.0.1'
+    finally:
+        s.close()
+    return IP
 
-def arp_scan(ip):
+def arp_scan(net):
     """
-    Performs a network scan by sending ARP requests to an IP address or a range of IP addresses.
+    Performs a network scan by sending ARP requests all devices on your local network.
 
     Args:
-        ip (str): An IP address or IP address range to scan. For example:
-                    - 192.168.1.1 to scan a single IP address
-                    - 192.168.1.1/24 to scan a range of IP addresses.
+        MaskLength (int): The length of the subnet mask of your local network
 
     Returns:
         A list of dictionaries mapping IP addresses to MAC addresses. For example:
         [
-            {'IP': '192.168.2.1', 'MAC': 'c4:93:d9:8b:3e:5a'}
+            {'IP': '192.168.0.1', 'MAC': 'a1:b2:c3:d4:e5:f6'}
         ]
     """
-    request = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=ip)
+    
+
+    #Send ARP requests to local IPs
+    request = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=net)
 
     ans, unans = srp(request, timeout=2, retry=1)
     result = []
@@ -53,6 +65,25 @@ def tcp_scan(ip, ports):
 
     return result
 
+def ip_scan(net):
+    """
+    Performs a network scan of all local IPs being used
+
+    Args:
+        MaskLength (int): The length of the subnet mask of your local network
+
+    Returns:
+        A list of IP addresses being used on your local network.
+    """
+    request = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=net)
+
+    ans, unans = srp(request, timeout=2, retry=1)
+    result = []
+
+    for sent, received in ans:
+        result.append({'IP': received.psrc})
+
+    return result
 
 def main():
     parser = argparse.ArgumentParser()
@@ -64,7 +95,7 @@ def main():
         'ARP', help='Perform a network scan using ARP requests.'
     )
     arp_subparser.add_argument(
-        'IP', help='An IP address (e.g. 192.168.1.1) or address range (e.g. 192.168.1.1/24) to scan.'
+        'MaskLength', help='The length of the Subnet mask of your local network'
     )
 
     tcp_subparser = subparsers.add_parser(
@@ -79,11 +110,20 @@ def main():
         '--range', action='store_true',
         help='Specify a range of ports. When this option is specified, <ports> should be given as <low_port> <high_port>.'
     )
+    ip_subparser = subparsers.add_parser(
+        'IP', help='Perform a scan of all local IPs being used'
+    )
+    ip_subparser.add_argument(
+        'MaskLength', help='The length of the Subnet mask of your local network'
+    )
 
     args = parser.parse_args()
 
     if args.command == 'ARP':
-        result = arp_scan(args.IP)
+        hostip = get_local_ip()
+        print("Host IP found: " + hostip)
+        mask = str(args.MaskLength)
+        result = arp_scan(hostip + "/" + mask)
 
         for mapping in result:
             print('{} ==> {}'.format(mapping['IP'], mapping['MAC']))
@@ -103,6 +143,14 @@ def main():
         for port in result:
             print('Port {} is open.'.format(port))
 
+    elif args.command == 'IP':
+        hostip = get_local_ip()
+        print("Host IP found: " + hostip)
+        mask = str(args.MaskLength)
+        result = ip_scan(hostip + "/" + mask)
+
+        for mapping in result:
+            print("IP: " + mapping['IP'])
 
 if __name__ == '__main__':
     main()
