@@ -1,6 +1,8 @@
 import argparse
 import socket
+import psutil
 from scapy.all import *
+from scapy.layers.dot11 import Dot11
 
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -85,6 +87,26 @@ def ip_scan(net):
 
     return result
 
+def get_net_ifaces():
+    addrs = psutil.net_if_addrs()
+    print(addrs.keys())
+
+def deauth_scan(interface):
+    # set Packet Counter 
+    Packet_Counter = 1
+
+    print("Begin scan...")
+    sniff(iface=interface,prn=get_packet_info)
+    print("Scan Complete.")
+
+def get_packet_info(packet):
+    if packet.haslayer(Dot11):
+        # The packet.subtype==12 statement indicates the deauth frame
+        if ((packet.type == 0) & (packet.subtype==12)):
+            global Packet_Counter
+            print ("[+] Deauthentication Packet detected ! ", Packet_Counter)
+            Packet_Counter = Packet_Counter + 1
+
 def main():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(
@@ -115,6 +137,17 @@ def main():
     )
     ip_subparser.add_argument(
         'MaskLength', help='The length of the Subnet mask of your local network'
+    )
+    deauth_subparser = subparsers.add_parser(
+        'DEAUTH', help='Begin packet sniffing for a Deauth DOS Attack'
+    )
+    deauth_subparser.add_argument (
+        '-netiface', action='store', nargs=1, default="",
+        help='Name of the network interface to be sniffed for Deauth'
+    )
+    deauth_subparser.add_argument(
+        '--list', action='store_true',
+        help='Returns a list of all network interfaces on this device'
     )
 
     args = parser.parse_args()
@@ -151,6 +184,14 @@ def main():
 
         for mapping in result:
             print("IP: " + mapping['IP'])
+
+    elif args.command == 'DEAUTH':
+        if args.list:
+            get_net_ifaces()
+        elif args.netiface == "":
+            raise ValueError("Missing required argument: -netiface")
+        else:
+            deauth_scan(args.netiface)
 
 if __name__ == '__main__':
     main()
