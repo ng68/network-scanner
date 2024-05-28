@@ -40,3 +40,14 @@ IP Scan Args:
     Returns:
         A list of IP addresses being used on your local network.
 ```
+
+Examples: 
+```
+python scanner.py ARP 24
+```
+```
+python scanner.py TCP 192.168.0.1 --range 0 600
+```
+```
+python scanner.py IP 32
+```
